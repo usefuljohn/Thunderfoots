@@ -36,7 +36,7 @@ Currently configured to track:
 1.  **Clone the repository** (or download the files):
     ```bash
     git clone <repository-url>
-    cd fourthstone
+    cd [directory]
     ```
 
 2.  **Create a virtual environment** (recommended):
