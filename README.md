@@ -22,7 +22,7 @@ A real-time command-line interface (CLI) stock tracking tool built with Python. 
 Currently configured to track:
 *   **ORRF:** Orrstown Financial
 *   **COFS:** ChoiceOne Financial
-*   **CWBC:** Community West Bancs
+*   **CWBC:** Community West Bancshares
 *   **AVBH:** Avidbank Holdings
 *   **BCAL:** California BanCorp.
 
