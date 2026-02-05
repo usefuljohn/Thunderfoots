@@ -1,4 +1,4 @@
-# Fourthstone Stock Tracker
+# Thunderfoots Stock Tracker
 
 A real-time command-line interface (CLI) stock tracking tool built with Python. It provides a live, auto-refreshing dashboard for monitoring a specific portfolio of banking sector stocks, displaying key financial metrics and performance indicators.
 
