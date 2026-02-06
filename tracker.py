@@ -12,6 +12,13 @@ STOCKS = {
     "BCAL": "California BanCorp."
 }
 
+BENCHMARKS = [
+    {"ticker": "KRE", "name": "S&P Regional Banking ETF"},
+    {"ticker": "VBR", "name": "Vanguard Small-Cap Value ETF"},
+    {"ticker": "IJR", "name": "iShares Core S&P Small-Cap ETF"},
+    {"ticker": "^BANK", "name": "NASDAQ Bank Index"}
+]
+
 def format_market_cap(value):
     if not value:
         return "N/A"
@@ -22,11 +29,17 @@ def format_market_cap(value):
     else:
         return f"${value:,.0f}"
 
-def get_stock_data():
-    data = []
+def get_dashboard_data():
+    stock_data = []
     tickers = list(STOCKS.keys())
-    # Fetch data in one go for efficiency
-    yf_tickers = yf.Tickers(" ".join(tickers))
+    benchmark_tickers = [b["ticker"] for b in BENCHMARKS]
+    
+    # Fetch data for stocks AND indices in one go
+    all_tickers = tickers + benchmark_tickers
+    yf_tickers = yf.Tickers(" ".join(all_tickers))
+    
+    # Process Stocks
+    valid_changes = []
     
     for ticker in tickers:
         try:
@@ -36,6 +49,9 @@ def get_stock_data():
             change = info.get("regularMarketChangePercent") or 0.0
             market_cap = info.get("marketCap")
             name = STOCKS.get(ticker)
+            
+            if isinstance(change, (int, float)):
+                 valid_changes.append(change)
             
             # New metrics
             beta = info.get("beta")
@@ -51,12 +67,12 @@ def get_stock_data():
             fmt_pb = f"{pb_ratio:.2f}" if pb_ratio is not None else "N/A"
             fmt_div = f"{div_yield:.2f}%" if div_yield is not None else "N/A"
 
-            data.append({
+            stock_data.append({
                 "ticker": ticker,
                 "name": name,
                 "price": f"${price:,.2f}",
                 "change": f"{change:+.2f}%",
-                "raw_change": change,
+                "raw_change": change if isinstance(change, (int, float)) else 0.0,
                 "market_cap": format_market_cap(market_cap),
                 "beta": fmt_beta,
                 "range_52w": fmt_range,
@@ -65,7 +81,7 @@ def get_stock_data():
                 "div_yield": fmt_div
             })
         except Exception:
-            data.append({
+            stock_data.append({
                 "ticker": ticker,
                 "name": STOCKS.get(ticker),
                 "price": "N/A",
@@ -79,13 +95,43 @@ def get_stock_data():
                 "div_yield": "N/A"
             })
     
-    # Sort data by raw_change in descending order (highest positive first)
-    data.sort(key=lambda x: x["raw_change"], reverse=True)
+    # Sort data by raw_change in descending order
+    stock_data.sort(key=lambda x: x["raw_change"], reverse=True)
     
-    return data
+    # Calculate Portfolio Average
+    portfolio_avg_change = sum(valid_changes) / len(valid_changes) if valid_changes else 0.0
+    
+    # Process Benchmarks
+    benchmark_data = []
+    for b in BENCHMARKS:
+        try:
+            info = yf_tickers.tickers[b["ticker"]].info
+            price = info.get("regularMarketPrice") or info.get("currentPrice") or 0.0
+            change = info.get("regularMarketChangePercent") or 0.0
+            
+            benchmark_data.append({
+                "name": b["name"],
+                "ticker": b["ticker"],
+                "price": price,
+                "change": change
+            })
+        except Exception:
+             benchmark_data.append({
+                "name": b["name"],
+                "ticker": b["ticker"],
+                "price": 0.0,
+                "change": 0.0
+            })
 
-def generate_table(data):
-    table = Table(title="Stock Tracker (Live Updates - Ctrl+C to Exit)")
+    return {
+        "stocks": stock_data,
+        "portfolio_avg": portfolio_avg_change,
+        "benchmarks": benchmark_data
+    }
+
+def generate_dashboard(data_dict):
+    # Main Stock Table
+    table = Table(title="Thunderfoot Stock Tracker")
     table.add_column("Ticker", style="cyan", no_wrap=True)
     table.add_column("Company Name", style="magenta")
     table.add_column("Price", justify="right", style="green")
@@ -97,8 +143,8 @@ def generate_table(data):
     table.add_column("P/B", justify="right")
     table.add_column("Div Yield", justify="right", style="green")
 
-    for item in data:
-        change_style = "bold green" if "+" in item["change"] else "bold red"
+    for item in data_dict["stocks"]:
+        change_style = "bold green" if item["raw_change"] >= 0 else "bold red"
         table.add_row(
             item["ticker"],
             item["name"],
@@ -110,17 +156,45 @@ def generate_table(data):
             item["short_ratio"],
             item["pb_ratio"],
             item["div_yield"],
-            style=change_style if "%" in item["change"] and item["change"] != "0.00%" else ""
+            style=change_style if item["change"] != "N/A" else ""
         )
-    return table
+        
+    # Summary / Comparison Table
+    summary_table = Table(title="Market Comparison (Equal-Weighted)", show_header=True)
+    summary_table.add_column("Entity", style="yellow")
+    summary_table.add_column("Price", justify="right")
+    summary_table.add_column("Daily Change", justify="right")
+    
+    # Portfolio Row
+    port_change_val = data_dict["portfolio_avg"]
+    port_color = "bold green" if port_change_val >= 0 else "bold red"
+    summary_table.add_row(
+        "Thunderfoot Portfolio",
+        "-",
+        f"[{port_color}]{port_change_val:+.2f}%[/{port_color}]"
+    )
+    
+    # Benchmark Rows
+    for b in data_dict["benchmarks"]:
+        idx_change_val = b["change"]
+        idx_price_val = b["price"]
+        idx_color = "bold green" if idx_change_val >= 0 else "bold red"
+        summary_table.add_row(
+            f"{b['name']} ({b['ticker']})",
+            f"${idx_price_val:,.2f}",
+            f"[{idx_color}]{idx_change_val:+.2f}%[/{idx_color}]"
+        )
+
+    from rich.console import Group
+    return Group(table, "\n", summary_table)
 
 def main():
     console = Console()
-    with Live(generate_table([]), refresh_per_second=1) as live:
+    with Live(generate_dashboard(get_dashboard_data()), refresh_per_second=1) as live:
         while True:
             try:
-                data = get_stock_data()
-                live.update(generate_table(data))
+                data = get_dashboard_data()
+                live.update(generate_dashboard(data))
                 time.sleep(30)  # Refresh every 30 seconds
             except KeyboardInterrupt:
                 break

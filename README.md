@@ -1,4 +1,4 @@
-# Thunderfoots Stock Tracker
+# Thunderfoot Stock Tracker
 
 A real-time command-line interface (CLI) stock tracking tool built with Python. It provides a live, auto-refreshing dashboard for monitoring a specific portfolio of banking sector stocks, displaying key financial metrics and performance indicators.
 
@@ -15,6 +15,11 @@ A real-time command-line interface (CLI) stock tracking tool built with Python. 
     *   **Valuation:** Price-to-Book (P/B) ratio.
     *   **Income:** Dividend Yield.
     *   **Range:** 52-Week High/Low range.
+*   **Market Comparison:** Compares the daily equal-weighted portfolio return against key benchmarks:
+    *   **S&P Regional Banking ETF (KRE)**
+    *   **Vanguard Small-Cap Value ETF (VBR)**
+    *   **iShares Core S&P Small-Cap ETF (IJR)**
+    *   **NASDAQ Bank Index (^BANK)**
 *   **Error Handling:** gracefully handles network issues or missing data points (displaying "N/A").
 
 ## Tracked Stocks
@@ -22,7 +27,7 @@ A real-time command-line interface (CLI) stock tracking tool built with Python. 
 Currently configured to track:
 *   **ORRF:** Orrstown Financial
 *   **COFS:** ChoiceOne Financial
-*   **CWBC:** Community West Bancshares
+*   **CWBC:** Community West Bancs
 *   **AVBH:** Avidbank Holdings
 *   **BCAL:** California BanCorp.
 
@@ -36,7 +41,7 @@ Currently configured to track:
 1.  **Clone the repository** (or download the files):
     ```bash
     git clone <repository-url>
-    cd [directory]
+    cd thunderfoot
     ```
 
 2.  **Create a virtual environment** (recommended):
