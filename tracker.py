@@ -1,137 +1,193 @@
+import json
+import time
+import argparse
+import sys
+from datetime import datetime
+from dataclasses import dataclass
+from typing import List, Dict, Optional, Any
+
 import yfinance as yf
-from rich.console import Console
+from rich.console import Console, Group
 from rich.table import Table
 from rich.live import Live
-import time
+from rich.panel import Panel
+from rich.text import Text
 
-STOCKS = {
-    "ORRF": "Orrstown Financial",
-    "COFS": "ChoiceOne Financial",
-    "CWBC": "Community West Bancs",
-    "AVBH": "Avidbank Holdings",
-    "BCAL": "California BanCorp."
-}
+# --- Configuration & Constants ---
+DEFAULT_CONFIG = "portfolio.json"
+DEFAULT_REFRESH = 30
 
-BENCHMARKS = [
-    {"ticker": "KRE", "name": "S&P Regional Banking ETF"},
-    {"ticker": "VBR", "name": "Vanguard Small-Cap Value ETF"},
-    {"ticker": "IJR", "name": "iShares Core S&P Small-Cap ETF"},
-    {"ticker": "^BANK", "name": "NASDAQ Bank Index"}
-]
+@dataclass
+class StockData:
+    ticker: str
+    name: str
+    price: float
+    change_pct: float
+    market_cap: Optional[float]
+    beta: Optional[float]
+    range_52w_low: Optional[float]
+    range_52w_high: Optional[float]
+    short_ratio: Optional[float]
+    pb_ratio: Optional[float]
+    div_yield: Optional[float]
 
-def format_market_cap(value):
-    if not value:
+    @property
+    def formatted_price(self) -> str:
+        return f"${self.price:,.2f}"
+
+    @property
+    def formatted_change(self) -> str:
+        return f"{self.change_pct:+.2f}%"
+
+    @property
+    def formatted_market_cap(self) -> str:
+        if not self.market_cap:
+            return "N/A"
+        if self.market_cap >= 1e9:
+            return f"${self.market_cap / 1e9:.2f}B"
+        elif self.market_cap >= 1e6:
+            return f"${self.market_cap / 1e6:.2f}M"
+        return f"${self.market_cap:,.0f}"
+
+    @property
+    def formatted_beta(self) -> str:
+        return f"{self.beta:.2f}" if self.beta is not None else "N/A"
+
+    @property
+    def formatted_range_52w(self) -> str:
+        if self.range_52w_low and self.range_52w_high:
+            return f"{self.range_52w_low:,.2f} - {self.range_52w_high:,.2f}"
         return "N/A"
-    if value >= 1e9:
-        return f"${value / 1e9:.2f}B"
-    elif value >= 1e6:
-        return f"${value / 1e6:.2f}M"
-    else:
-        return f"${value:,.0f}"
 
-def get_dashboard_data():
-    stock_data = []
-    tickers = list(STOCKS.keys())
-    benchmark_tickers = [b["ticker"] for b in BENCHMARKS]
-    
-    # Fetch data for stocks AND indices in one go
-    all_tickers = tickers + benchmark_tickers
-    yf_tickers = yf.Tickers(" ".join(all_tickers))
-    
-    # Process Stocks
-    valid_changes = []
-    
-    for ticker in tickers:
+    @property
+    def formatted_short_ratio(self) -> str:
+        return f"{self.short_ratio:.2f}" if self.short_ratio is not None else "N/A"
+
+    @property
+    def formatted_pb_ratio(self) -> str:
+        return f"{self.pb_ratio:.2f}" if self.pb_ratio is not None else "N/A"
+
+    @property
+    def formatted_div_yield(self) -> str:
+        return f"{self.div_yield:.2f}%" if self.div_yield is not None else "N/A"
+
+class PortfolioTracker:
+    def __init__(self, config_path: str):
+        self.config = self._load_config(config_path)
+        self.stocks = self.config.get("stocks", {})
+        self.benchmarks = self.config.get("benchmarks", [])
+
+    def _load_config(self, path: str) -> Dict[str, Any]:
         try:
-            info = yf_tickers.tickers[ticker].info
-            # Handle potential missing keys in info
-            price = info.get("regularMarketPrice") or info.get("currentPrice") or 0.0
-            change = info.get("regularMarketChangePercent") or 0.0
-            market_cap = info.get("marketCap")
-            name = STOCKS.get(ticker)
-            
-            if isinstance(change, (int, float)):
-                 valid_changes.append(change)
-            
-            # New metrics
-            beta = info.get("beta")
-            range_52w = info.get("fiftyTwoWeekRange")
-            short_ratio = info.get("shortRatio")
-            pb_ratio = info.get("priceToBook")
-            div_yield = info.get("dividendYield")
+            with open(path, "r") as f:
+                return json.load(f)
+        except FileNotFoundError:
+            print(f"Error: Config file '{path}' not found.")
+            sys.exit(1)
+        except json.JSONDecodeError:
+            print(f"Error: Config file '{path}' is not valid JSON.")
+            sys.exit(1)
 
-            # Formatting
-            fmt_beta = f"{beta:.2f}" if beta is not None else "N/A"
-            fmt_range = str(range_52w) if range_52w else "N/A"
-            fmt_short = f"{short_ratio:.2f}" if short_ratio is not None else "N/A"
-            fmt_pb = f"{pb_ratio:.2f}" if pb_ratio is not None else "N/A"
-            fmt_div = f"{div_yield:.2f}%" if div_yield is not None else "N/A"
-
-            stock_data.append({
-                "ticker": ticker,
-                "name": name,
-                "price": f"${price:,.2f}",
-                "change": f"{change:+.2f}%",
-                "raw_change": change if isinstance(change, (int, float)) else 0.0,
-                "market_cap": format_market_cap(market_cap),
-                "beta": fmt_beta,
-                "range_52w": fmt_range,
-                "short_ratio": fmt_short,
-                "pb_ratio": fmt_pb,
-                "div_yield": fmt_div
-            })
-        except Exception:
-            stock_data.append({
-                "ticker": ticker,
-                "name": STOCKS.get(ticker),
-                "price": "N/A",
-                "change": "N/A",
-                "raw_change": -float("inf"),
-                "market_cap": "N/A",
-                "beta": "N/A",
-                "range_52w": "N/A",
-                "short_ratio": "N/A",
-                "pb_ratio": "N/A",
-                "div_yield": "N/A"
-            })
-    
-    # Sort data by raw_change in descending order
-    stock_data.sort(key=lambda x: x["raw_change"], reverse=True)
-    
-    # Calculate Portfolio Average
-    portfolio_avg_change = sum(valid_changes) / len(valid_changes) if valid_changes else 0.0
-    
-    # Process Benchmarks
-    benchmark_data = []
-    for b in BENCHMARKS:
+    def fetch_data(self) -> Dict[str, Any]:
+        stock_tickers = list(self.stocks.keys())
+        benchmark_tickers = [b["ticker"] for b in self.benchmarks]
+        all_tickers = stock_tickers + benchmark_tickers
+        
+        # Batch fetch
         try:
-            info = yf_tickers.tickers[b["ticker"]].info
-            price = info.get("regularMarketPrice") or info.get("currentPrice") or 0.0
-            change = info.get("regularMarketChangePercent") or 0.0
-            
-            benchmark_data.append({
-                "name": b["name"],
-                "ticker": b["ticker"],
-                "price": price,
-                "change": change
-            })
-        except Exception:
-             benchmark_data.append({
-                "name": b["name"],
-                "ticker": b["ticker"],
-                "price": 0.0,
-                "change": 0.0
-            })
+            tickers_data = yf.Tickers(" ".join(all_tickers))
+        except Exception as e:
+            # Fallback or error logging
+            return {"stocks": [], "portfolio_avg": 0.0, "benchmarks": [], "error": str(e)}
 
-    return {
-        "stocks": stock_data,
-        "portfolio_avg": portfolio_avg_change,
-        "benchmarks": benchmark_data
-    }
+        processed_stocks: List[StockData] = []
+        valid_changes: List[float] = []
 
-def generate_dashboard(data_dict):
+        # Process Stocks
+        for ticker in stock_tickers:
+            try:
+                info = tickers_data.tickers[ticker].info
+                
+                # Extract Data safely
+                price = info.get("regularMarketPrice") or info.get("currentPrice") or 0.0
+                change = info.get("regularMarketChangePercent") or 0.0
+                
+                if isinstance(change, (int, float)):
+                    valid_changes.append(change)
+
+                processed_stocks.append(StockData(
+                    ticker=ticker,
+                    name=self.stocks.get(ticker, ticker),
+                    price=price,
+                    change_pct=change,
+                    market_cap=info.get("marketCap"),
+                    beta=info.get("beta"),
+                    range_52w_low=info.get("fiftyTwoWeekLow"),
+                    range_52w_high=info.get("fiftyTwoWeekHigh"),
+                    short_ratio=info.get("shortRatio"),
+                    pb_ratio=info.get("priceToBook"),
+                    div_yield=info.get("dividendYield")
+                ))
+
+            except Exception:
+                # Add a dummy empty record on failure to keep the list consistent or just skip
+                processed_stocks.append(StockData(
+                    ticker=ticker,
+                    name=self.stocks.get(ticker, ticker),
+                    price=0.0,
+                    change_pct=0.0,
+                    market_cap=None,
+                    beta=None,
+                    range_52w_low=None,
+                    range_52w_high=None,
+                    short_ratio=None,
+                    pb_ratio=None,
+                    div_yield=None
+                ))
+
+        # Sort by change descending
+        processed_stocks.sort(key=lambda x: x.change_pct, reverse=True)
+
+        # Portfolio Avg
+        portfolio_avg = sum(valid_changes) / len(valid_changes) if valid_changes else 0.0
+
+        # Process Benchmarks
+        processed_benchmarks = []
+        for b in self.benchmarks:
+            try:
+                info = tickers_data.tickers[b["ticker"]].info
+                price = info.get("regularMarketPrice") or info.get("currentPrice") or 0.0
+                change = info.get("regularMarketChangePercent") or 0.0
+                processed_benchmarks.append({
+                    "name": b["name"],
+                    "ticker": b["ticker"],
+                    "price": price,
+                    "change": change
+                })
+            except Exception:
+                processed_benchmarks.append({
+                    "name": b["name"],
+                    "ticker": b["ticker"],
+                    "price": 0.0,
+                    "change": 0.0
+                })
+
+        return {
+            "stocks": processed_stocks,
+            "portfolio_avg": portfolio_avg,
+            "benchmarks": processed_benchmarks,
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+
+def generate_dashboard(data: Dict[str, Any]) -> Group:
+    if "error" in data:
+        return Group(Panel(f"[bold red]Error fetching data:[/bold red] {data['error']}"))
+
+    # Header with timestamp
+    timestamp_text = Text(f"Last Updated: {data.get('timestamp', 'N/A')}", style="dim italic", justify="right")
+
     # Main Stock Table
-    table = Table(title="Thunderfoot Stock Tracker")
+    table = Table(title="Thunderfoot Stock Tracker", expand=True)
     table.add_column("Ticker", style="cyan", no_wrap=True)
     table.add_column("Company Name", style="magenta")
     table.add_column("Price", justify="right", style="green")
@@ -143,64 +199,75 @@ def generate_dashboard(data_dict):
     table.add_column("P/B", justify="right")
     table.add_column("Div Yield", justify="right", style="green")
 
-    for item in data_dict["stocks"]:
-        change_style = "bold green" if item["raw_change"] >= 0 else "bold red"
+    for stock in data["stocks"]:
+        change_style = "bold green" if stock.change_pct >= 0 else "bold red"
         table.add_row(
-            item["ticker"],
-            item["name"],
-            item["price"],
-            item["change"],
-            item["market_cap"],
-            item["beta"],
-            item["range_52w"],
-            item["short_ratio"],
-            item["pb_ratio"],
-            item["div_yield"],
-            style=change_style if item["change"] != "N/A" else ""
+            stock.ticker,
+            stock.name,
+            stock.formatted_price,
+            f"[{change_style}]{stock.formatted_change}[/{change_style}]",
+            stock.formatted_market_cap,
+            stock.formatted_beta,
+            stock.formatted_range_52w,
+            stock.formatted_short_ratio,
+            stock.formatted_pb_ratio,
+            stock.formatted_div_yield
         )
         
-    # Summary / Comparison Table
-    summary_table = Table(title="Market Comparison (Equal-Weighted)", show_header=True)
+    # Summary Table
+    summary_table = Table(title="Market Comparison", show_header=True, expand=True)
     summary_table.add_column("Entity", style="yellow")
     summary_table.add_column("Price", justify="right")
     summary_table.add_column("Daily Change", justify="right")
     
     # Portfolio Row
-    port_change_val = data_dict["portfolio_avg"]
-    port_color = "bold green" if port_change_val >= 0 else "bold red"
+    port_val = data["portfolio_avg"]
+    port_color = "bold green" if port_val >= 0 else "bold red"
     summary_table.add_row(
-        "Thunderfoot Portfolio",
+        "Thunderfoot Portfolio (Avg)",
         "-",
-        f"[{port_color}]{port_change_val:+.2f}%[/{port_color}]"
+        f"[{port_color}]{port_val:+.2f}%[/{port_color}]"
     )
     
     # Benchmark Rows
-    for b in data_dict["benchmarks"]:
-        idx_change_val = b["change"]
-        idx_price_val = b["price"]
-        idx_color = "bold green" if idx_change_val >= 0 else "bold red"
+    for b in data["benchmarks"]:
+        color = "bold green" if b["change"] >= 0 else "bold red"
         summary_table.add_row(
             f"{b['name']} ({b['ticker']})",
-            f"${idx_price_val:,.2f}",
-            f"[{idx_color}]{idx_change_val:+.2f}%[/{idx_color}]"
+            f"${b['price']:,.2f}",
+            f"[{color}]{b['change']:+.2f}%[/{color}]"
         )
 
-    from rich.console import Group
-    return Group(table, "\n", summary_table)
+    return Group(timestamp_text, table, "\n", summary_table)
 
 def main():
+    parser = argparse.ArgumentParser(description="Thunderfoot Stock Tracker")
+    parser.add_argument("--config", type=str, default=DEFAULT_CONFIG, help="Path to config JSON file")
+    parser.add_argument("--interval", type=int, default=DEFAULT_REFRESH, help="Refresh interval in seconds")
+    args = parser.parse_args()
+
     console = Console()
-    with Live(generate_dashboard(get_dashboard_data()), refresh_per_second=1) as live:
+    tracker = PortfolioTracker(args.config)
+
+    console.print("[bold green]Starting Thunderfoot Tracker...[/bold green]")
+    
+    # Initial Fetch to show immediate data
+    try:
+        data = tracker.fetch_data()
+    except KeyboardInterrupt:
+        return
+
+    with Live(generate_dashboard(data), refresh_per_second=1, screen=True) as live:
         while True:
             try:
-                data = get_dashboard_data()
+                time.sleep(args.interval)
+                data = tracker.fetch_data()
                 live.update(generate_dashboard(data))
-                time.sleep(30)  # Refresh every 30 seconds
             except KeyboardInterrupt:
                 break
             except Exception as e:
-                console.print(f"[bold red]Error: {e}")
-                time.sleep(10)
+                console.print(f"[bold red]Unexpected Error: {e}")
+                time.sleep(5)
 
 if __name__ == "__main__":
     main()
