@@ -6,7 +6,9 @@
         "AVBH": "Avidbank Holdings",
         "BCAL": "California BanCorp."
     },
-    "benchmarks": [
+    "indices_etfs": [
+        {"ticker": "GC=F", "name": "Gold $ / Oz"},
+        {"ticker": "BTC-USD", "name": "Bitcoin BTC / $"},
         {"ticker": "KRE", "name": "S&P Regional Banking ETF"},
         {"ticker": "VBR", "name": "Vanguard Small-Cap Value ETF"},
         {"ticker": "IJR", "name": "iShares Core S&P Small-Cap ETF"},

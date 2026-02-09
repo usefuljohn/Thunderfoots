@@ -15,7 +15,9 @@ A real-time command-line interface (CLI) stock tracking tool built with Python. 
     *   **Valuation:** Price-to-Book (P/B) ratio.
     *   **Income:** Dividend Yield.
     *   **Range:** 52-Week High/Low range.
-*   **Market Comparison:** Compares the daily equal-weighted portfolio return against key benchmarks:
+*   **Market Comparison:** Compares the daily equal-weighted portfolio return against key assets and benchmarks, sorted by daily performance:
+    *   **Gold $ / Oz (GC=F)**
+    *   **Bitcoin BTC / $ (BTC-USD)**
     *   **S&P Regional Banking ETF (KRE)**
     *   **Vanguard Small-Cap Value ETF (VBR)**
     *   **iShares Core S&P Small-Cap ETF (IJR)**
@@ -67,11 +69,15 @@ The application will launch in your terminal and update automatically. To exit, 
 
 ## Customization
 
-To modify the list of tracked stocks, edit the `STOCKS` dictionary in `tracker.py`:
+To modify the list of tracked stocks or benchmarks, edit the `portfolio.json` file:
 
-```python
-STOCKS = {
-    "TICKER": "Company Name",
-    ...
+```json
+{
+    "stocks": {
+        "TICKER": "Company Name"
+    },
+    "indices_etfs": [
+        {"ticker": "TICKER", "name": "Display Name"}
+    ]
 }
 ```

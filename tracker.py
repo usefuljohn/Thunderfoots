@@ -75,7 +75,8 @@ class PortfolioTracker:
     def __init__(self, config_path: str):
         self.config = self._load_config(config_path)
         self.stocks = self.config.get("stocks", {})
-        self.benchmarks = self.config.get("benchmarks", [])
+        # Check for indices_etfs first, then fall back to benchmarks
+        self.benchmarks = self.config.get("indices_etfs") or self.config.get("benchmarks") or []
 
     def _load_config(self, path: str) -> Dict[str, Any]:
         try:
@@ -171,6 +172,9 @@ class PortfolioTracker:
                     "price": 0.0,
                     "change": 0.0
                 })
+
+        # Sort benchmarks by change descending
+        processed_benchmarks.sort(key=lambda x: x["change"], reverse=True)
 
         return {
             "stocks": processed_stocks,
