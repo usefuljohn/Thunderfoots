@@ -30,6 +30,7 @@ class StockData:
     short_ratio: Optional[float]
     pb_ratio: Optional[float]
     div_yield: Optional[float]
+    roa: Optional[float]
 
     @property
     def formatted_price(self) -> str:
@@ -70,6 +71,10 @@ class StockData:
     @property
     def formatted_div_yield(self) -> str:
         return f"{self.div_yield:.2f}%" if self.div_yield is not None else "N/A"
+
+    @property
+    def formatted_roa(self) -> str:
+        return f"{self.roa * 100:.2f}%" if self.roa is not None else "N/A"
 
 class PortfolioTracker:
     def __init__(self, config_path: str):
@@ -127,7 +132,8 @@ class PortfolioTracker:
                     range_52w_high=info.get("fiftyTwoWeekHigh"),
                     short_ratio=info.get("shortRatio"),
                     pb_ratio=info.get("priceToBook"),
-                    div_yield=info.get("dividendYield")
+                    div_yield=info.get("dividendYield"),
+                    roa=info.get("returnOnAssets")
                 ))
 
             except Exception:
@@ -143,7 +149,8 @@ class PortfolioTracker:
                     range_52w_high=None,
                     short_ratio=None,
                     pb_ratio=None,
-                    div_yield=None
+                    div_yield=None,
+                    roa=None
                 ))
 
         # Sort by change descending
@@ -201,6 +208,7 @@ def generate_dashboard(data: Dict[str, Any]) -> Group:
     table.add_column("52W Range", justify="right")
     table.add_column("Short Ratio", justify="right")
     table.add_column("P/B", justify="right")
+    table.add_column("ROA", justify="right", style="cyan")
     table.add_column("Div Yield", justify="right", style="green")
 
     for stock in data["stocks"]:
@@ -215,6 +223,7 @@ def generate_dashboard(data: Dict[str, Any]) -> Group:
             stock.formatted_range_52w,
             stock.formatted_short_ratio,
             stock.formatted_pb_ratio,
+            stock.formatted_roa,
             stock.formatted_div_yield
         )
         

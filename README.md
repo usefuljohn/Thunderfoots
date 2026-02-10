@@ -13,6 +13,7 @@ A real-time command-line interface (CLI) stock tracking tool built with Python. 
     *   **Market Cap:** Formatted market capitalization.
     *   **Risk Metrics:** Beta (volatility) and Short Ratio.
     *   **Valuation:** Price-to-Book (P/B) ratio.
+    *   **Performance:** Return on Assets (ROA).
     *   **Income:** Dividend Yield.
     *   **Range:** 52-Week High/Low range.
 *   **Market Comparison:** Compares the daily equal-weighted portfolio return against key assets and benchmarks, sorted by daily performance:
